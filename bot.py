@@ -76,6 +76,19 @@ def get_range(number):
     return number
 
 # =========================
+# HIDE NUMBER
+# =========================
+
+def hide_number(number):
+
+    number = str(number)
+
+    if len(number) > 3:
+        return number[:-3] + "XXX"
+
+    return number
+
+# =========================
 # FORMAT MESSAGE
 # =========================
 
@@ -88,15 +101,24 @@ def format_message(item):
     # RANGE
     range_ = get_range(number)
 
+    # HIDDEN NUMBER
+    hidden_number = hide_number(number)
+
     text = f"""🔥 <b>NEW LIVE RANGE</b>
 
 ━━━━━━━━━━━━━━━━
-
 📱 <b>APP :</b> {app}
+
+━━━━━━━━━━━━━━━━
 🌍 <b>COUNTRY :</b> {country}
 
-📶 <b>RANGE</b>
+━━━━━━━━━━━━━━━━
+📶 <b>RANGE :</b>
 <code>{range_}</code>
+
+━━━━━━━━━━━━━━━━
+📞 <b>NUMBER :</b>
+<code>{hidden_number}</code>
 
 ━━━━━━━━━━━━━━━━
 """
