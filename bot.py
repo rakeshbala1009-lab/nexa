@@ -9,17 +9,17 @@ API_KEY = "nxa_f3ade1c6370a227d66241366d5c6d9aba583964f"
 BOT_TOKEN = "8752592084:AAEMM0oZmqE-WDmsInzJwxm9XPMmENRTFJY"
 CHAT_ID = "-1003867305261"
 
-BASE_URL = "http://185.190.142.81/api/v1"
+BASE_URL = "http://185.190.142.81"
 
 HEADERS = {
     "X-API-Key": API_KEY
 }
 
-# CHECK EVERY 0.3 SEC
-CHECK_DELAY = 0.3
+# ULTRA FAST CHECK
+CHECK_DELAY = 0.001
 
-# SAVE SENT IDS
-sent_ids = set()
+# SAVE SENT RANGE + TIME
+sent_keys = set()
 
 # =========================
 # TELEGRAM SEND
@@ -27,18 +27,23 @@ sent_ids = set()
 
 def send_telegram(text):
 
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-
-    data = {
-        "chat_id": CHAT_ID,
-        "text": text,
-        "parse_mode": "HTML"
-    }
-
     try:
-        requests.post(url, data=data, timeout=10)
+
+        requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+            data={
+                "chat_id": CHAT_ID,
+                "text": text,
+                "parse_mode": "HTML",
+                "disable_web_page_preview": True
+            },
+            timeout=10
+        )
+
+        print("SENT TO GROUP")
 
     except Exception as e:
+
         print("Telegram Error:", e)
 
 # =========================
@@ -68,23 +73,10 @@ def fetch_logs(endpoint):
 
 def get_range(number):
 
-    number = str(number)
+    number = str(number).replace(" ", "")
 
     if len(number) >= 7:
         return number[:7] + "xxxx"
-
-    return number
-
-# =========================
-# HIDE NUMBER
-# =========================
-
-def hide_number(number):
-
-    number = str(number)
-
-    if len(number) > 3:
-        return number[:-3] + "XXX"
 
     return number
 
@@ -97,12 +89,10 @@ def format_message(item):
     app = item.get("app_name", "Unknown")
     number = str(item.get("number", "Unknown"))
     country = item.get("country", "Unknown")
+    carrier = item.get("carrier", "Unknown")
+    log_time = item.get("time", "Unknown")
 
-    # RANGE
     range_ = get_range(number)
-
-    # HIDDEN NUMBER
-    hidden_number = hide_number(number)
 
     text = f"""🔥 <b>NEW LIVE RANGE</b>
 
@@ -113,12 +103,15 @@ def format_message(item):
 🌍 <b>COUNTRY :</b> {country}
 
 ━━━━━━━━━━━━━━━━
+📡 <b>CARRIER :</b> {carrier}
+
+━━━━━━━━━━━━━━━━
 📶 <b>RANGE :</b>
+
 <code>{range_}</code>
 
 ━━━━━━━━━━━━━━━━
-📞 <b>NUMBER :</b>
-<code>{hidden_number}</code>
+⏰ <b>TIME :</b> {log_time}
 
 ━━━━━━━━━━━━━━━━
 """
@@ -129,7 +122,9 @@ def format_message(item):
 # PROCESS LOGS
 # =========================
 
-def process_logs(data, prefix):
+def process_logs(data):
+
+    global sent_keys
 
     if not data:
         return
@@ -147,30 +142,41 @@ def process_logs(data, prefix):
 
     for item in logs:
 
-        # SKIP INVALID ITEMS
         if not isinstance(item, dict):
             continue
 
-        item_id = item.get("id")
-
-        if not item_id:
-            continue
-
-        msg_id = f"{prefix}_{item_id}"
-
-        # SKIP DUPLICATE IDS
-        if msg_id in sent_ids:
-            continue
-
-        sent_ids.add(msg_id)
-
         try:
 
+            number = str(item.get("number", "")).strip()
+            log_time = str(item.get("time", "")).strip()
+
+            if not number:
+                continue
+
+            # RANGE
+            range_ = get_range(number)
+
+            # UNIQUE KEY
+            unique_key = f"{range_}_{log_time}"
+
+            # SKIP SAME RANGE SAME SECOND
+            if unique_key in sent_keys:
+                continue
+
+            # SAVE KEY
+            sent_keys.add(unique_key)
+
+            # CLEAN MEMORY
+            if len(sent_keys) > 10000:
+                sent_keys = set(list(sent_keys)[-5000:])
+
+            # FORMAT
             text = format_message(item)
 
+            # INSTANT SEND
             send_telegram(text)
 
-            print("SENT:", msg_id)
+            print("NEW:", unique_key)
 
         except Exception as e:
 
@@ -180,41 +186,28 @@ def process_logs(data, prefix):
 # MAIN LOOP
 # =========================
 
-print("🔥 LIVE RANGE BOT STARTED...")
+print("🔥 INSTANT LIVE RANGE BOT STARTED...")
 
 while True:
 
     try:
 
-        # =====================
-        # CONSOLE LOGS
-        # =====================
-
+        # CONSOLE 1
         console_data = fetch_logs(
-            "/console/logs?limit=50"
+            "/api/v1/console/logs?limit=200"
         )
 
-        process_logs(
-            console_data,
-            "console"
-        )
+        process_logs(console_data)
 
-        # =====================
-        # ENGINE2 LOGS
-        # =====================
-
+        # CONSOLE 2
         engine2_data = fetch_logs(
-            "/console/logs/engine2?limit=50"
+            "/api/v1/console/logs/engine2?limit=200"
         )
 
-        process_logs(
-            engine2_data,
-            "engine2"
-        )
+        process_logs(engine2_data)
 
     except Exception as e:
 
         print("MAIN LOOP ERROR:", e)
 
-    # FAST CHECK
     time.sleep(CHECK_DELAY)
